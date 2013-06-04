@@ -44,10 +44,12 @@ class Main(Service):
 
     _ag  = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"
     _br  = spynner.Browser(user_agent=_ag)
-    _ak  = "e7844310697f7549d15add2f9e1401a1"
+    _ak  = "2e73e6eb4ecc471e007cd0e3bdb848e7" # this is api key for antigate.com
     _url = "https://by.e-konsulat.gov.pl/Uslugi/RejestracjaTerminu.aspx?IDUSLUGI=%s&IDPlacowki=%s"
     
     params = {
+        'localeSelect': 'ctl00$ddlWersjeJezykowe',
+        'russianLocale': 17,
         'captchaField': 'recaptcha_response_field',
         'captchaSubmit': 'ctl00$cp$btnDalej',
         'serviceTypeSelect': 'ctl00$cp$cbRodzajUslugi',
@@ -117,7 +119,7 @@ class Main(Service):
         else:
             echo('['+self.eval_time(time.time())+'] Proxy is not set.','WARNING', self.work_dir)
         try:
-            status = self._br.load(self._url, load_timeout=40)
+            status = self._br.load(self._url, load_timeout=15)
         except Exception, e:
             self.log('error', inspect.stack()[0][3]+': '+str(e)+'\n');
             echo(str(e).replace('Errno ', 'E-')+' Try connect to by.e-konsulat.gov.pl again.','ERROR', self.work_dir)
@@ -143,7 +145,7 @@ class Main(Service):
     def serviceType(self, typeID, show_browser = False):
         self._br.load_jquery(True)
         self._br.select('select[name="'+str(self.params.get('serviceTypeSelect'))+'"] option[value="'+str(typeID)+'"]')
-        self._br.runjs(self.render_js('secondStep', {'serviceTypeSelect':str(self.params.get('serviceTypeSelect'))}))
+        self._br.runjs(self.render_js('asp_ajax_send', {'selectName':str(self.params.get('serviceTypeSelect'))}))
         echo('['+self.eval_time(time.time())+'] Service type is selected: '+str(typeID),'SUCCESS', self.work_dir)
         if (show_browser == True):
             self._br.browse()
@@ -154,7 +156,7 @@ class Main(Service):
         self._br.load_jquery(True)
         if (date == None):
             dateIndex = str(1)
-            dateList = self._br.runjs(self.render_js('selectDate', {
+            dateList = self._br.runjs(self.render_js('select_date', {
                 'dateSelect': str(self.params.get('dateSelect')),
                 'date': dateIndex
             })).toString()
@@ -168,7 +170,7 @@ class Main(Service):
             dateValue = self._br.runjs('document.getElementsByName("'+str(self.params.get('dateSelect'))+'")[0].children['+dateIndex+'].text;').toString()
             echo('['+self.eval_time(time.time())+'] Date is selected: '+dateValue,'SUCCESS', self.work_dir)
         else:
-            result = self._br.runjs(self.render_js('selectDate', {
+            result = self._br.runjs(self.render_js('select_date', {
                 'dateSelect': str(self.params.get('dateSelect')),
                 'date': '"'+str(date)+'"'
             }))
@@ -211,6 +213,10 @@ class Main(Service):
     def _getCaptchaFile(self):
         self._br.load_jquery(True)
         imgUrl = self._br.runjs("$('#recaptcha_image').children('img').attr('src');").toString()
+        if (imgUrl == ''):
+            self._setLocale()
+            self._br.load_jquery(True)
+            imgUrl = self._br.runjs("$('#recaptcha_image').children('img').attr('src');").toString()
         if (imgUrl):
             if not os.path.isdir(self.work_dir+'/captcha'):
                 os.makedirs(self.work_dir+'/captcha')
@@ -223,6 +229,12 @@ class Main(Service):
             self.log('error', inspect.stack()[0][3]+': [FATAL] Link to the captcha was not found!')
             self.log('status', 'False', 'w+')
             sys.exit(2)
+
+    def _setLocale(self):
+        self._br.load_jquery(True)
+        self._br.select('select[name="'+str(self.params.get('localeSelect'))+'"] option[value='+str(self.params.get('russianLocale'))+']')
+        self._br.runjs(self.render_js('asp_ajax_send', {'selectName':str(self.params.get('localeSelect'))}))
+        self._br.wait_a_little(1)
 
     def _help(self):
         echo('RegBot - python bot(script) for registration profiles on viza.','INFO')

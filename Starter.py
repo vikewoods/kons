@@ -9,6 +9,7 @@ class Main:
 
     threads = {}
     subprocess = {}
+    process_tree = {}
 
     def __init__(self):
         echo() # clear log file
@@ -16,18 +17,14 @@ class Main:
         if (self.profile_mappings == False):
             echo('['+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+'] Could not start. No profiles.', 'ERROR')
             sys.exit(2)
-        self.run_threads()
+        for mapping in self.profile_mappings:
+            self.run_threads(mapping)
 
-    def run_threads(self, mapping = None):
-        if (mapping == None):
-            for mapping in self.profile_mappings:
-                alias = str(uuid.uuid4())
-                self.threads[alias] = threading.Thread(target=self.run_subprocess, args = (alias, mapping))
-                self.threads[alias].start()
-        else:
-            alias = str(uuid.uuid4())
-            self.threads[alias] = threading.Thread(target=self.run_subprocess, args = (alias, mapping))
-            self.threads[alias].start()
+    def run_threads(self, mapping, parent = None):
+        alias = str(uuid.uuid4())
+        self._process_tree(mapping,alias,parent)
+        self.threads[alias] = threading.Thread(target=self.run_subprocess, args = (alias, mapping))
+        self.threads[alias].start()
 
     def run_subprocess(self, alias, mapping):
         command_line = 'python RegBot.py'
@@ -37,7 +34,7 @@ class Main:
         command_line += ' -a '+mapping['profile']+' -s '+alias;
         self.subprocess[alias] = subprocess.Popen(command_line, shell = True, stdout = subprocess.PIPE)
         echo('['+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+'] Start bot: '+alias+' with PID '+str(self.subprocess[alias].pid+1), 'SUCCESS')
-        echo(command_line+'\n', 'INFO')
+        echo('> '+command_line, 'INFO')
         self.sub_checker(alias, mapping)
 
     def sub_checker(self, alias, mapping):
@@ -57,7 +54,7 @@ class Main:
                     c = len(dateList) if (dateList<mappings) else len(mappings)
                     for i in range(c):
                         mappings[i]['date'] = dateList[i]
-                        self.run_threads(mappings[i])
+                        self.run_threads(mappings[i], alias)
                 else:
                     echo('['+datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")+'] Bot '+alias+' returned list of dates. Not enough profiles.', 'WARNING')
                 date_list_exist = True
@@ -112,6 +109,16 @@ class Main:
                 status = False
             time.sleep(1)
 
+    def _process_tree(self,mapping,alias,parent = None):
+        if (parent == None):
+            self.process_tree[str(alias)] = {'mapping': mapping.copy(), 'childrens': []}
+        else:
+            self.process_tree[str(parent)]['childrens'] += {'alias': str(alias), 'mapping': mapping.copy()}
+
+        open('process_tree.json','w+').write(json.dumps(self.process_tree))
+
+
+
 class echo:
 
     HEADER = '\033[1m'+'\033[47m'+'\033[90m'
@@ -124,10 +131,10 @@ class echo:
 
     def __init__(self, strLine = None, type = None):
         if (strLine == None):
-            log = open('Starter.log','w+')
+            log = open('starter.log','w+')
             log.close()
         else:
-            log = open('Starter.log','a+')
+            log = open('starter.log','a+')
             log.write(strLine+'\n')
             log.close()
             if (type != None and hasattr(self, type)):
