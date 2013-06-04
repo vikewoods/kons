@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # coding: utf8
 
-import sys, getopt, spynner, pyquery, urllib, os, uuid, time, datetime, re, inspect
+import sys, getopt, spynner, urllib, os, uuid, time, datetime, re, inspect
 from antigate import AntiGate
 
 class Service:
@@ -12,7 +12,7 @@ class Service:
         return str(time-self._st)[0:5]
 
     def render_js(self, file_name, args):
-        content = open('js_templates/'+file_name+'.js','r').read()
+        content = open(os.path.dirname(__file__)+'/js_templates/'+file_name+'.js','r').read()
         for key in args.keys():
             content = re.sub("{{ "+key+" }}", args[key], content)
         return content
@@ -42,19 +42,20 @@ class Service:
 
 class Main(Service):
 
-    _ag  = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.31 (KHTML, like Gecko) Chrome/26.0.1410.43 Safari/537.31"
+    _ag  = "Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.22 (KHTML, like Gecko) Ubuntu Chromium/25.0.1364.160 Chrome/25.0.1364.160 Safari/537.22"
     _br  = spynner.Browser(user_agent=_ag)
     _ak  = "2e73e6eb4ecc471e007cd0e3bdb848e7" # this is api key for antigate.com
     _url = "https://by.e-konsulat.gov.pl/Uslugi/RejestracjaTerminu.aspx?IDUSLUGI=%s&IDPlacowki=%s"
+    _rp = os.path.dirname(__file__)
     
     params = {
-        'localeSelect': 'ctl00$ddlWersjeJezykowe',
-        'russianLocale': 17,
-        'captchaField': 'recaptcha_response_field',
-        'captchaSubmit': 'ctl00$cp$btnDalej',
-        'serviceTypeSelect': 'ctl00$cp$cbRodzajUslugi',
-        'dateSelect': 'ctl00$cp$cbDzien',
-        'dateSubmit': 'ctl00$cp$btnRezerwuj',
+        'localeSelect': 'ctl00$ddlWersjeJezykowe',      #name   
+        'captchaField': 'recaptcha_response_field',     #id/name
+        'captchaSubmit': 'ctl00$cp$btnDalej',           #name   
+        'serviceTypeSelect': 'ctl00$cp$cbRodzajUslugi', #name   
+        'dateSelect': 'ctl00$cp$cbDzien',               #name   
+        'dateSubmit': 'ctl00$cp$btnRezerwuj',           #name   
+        'noDateHint': 'ctl00_cp_lblBrakTerminow'        #id     
     }
 
     def __init__(self, argv):
@@ -67,9 +68,9 @@ class Main(Service):
             echo('Try to use -h for help.','WARNING')
             sys.exit(2)
         if (hasattr(self, 'sid')):
-            self.work_dir = 'logs/'+self.sid
+            self.work_dir = self._rp+'/logs/'+self.sid
         else:
-            self.work_dir = 'logs'
+            self.work_dir = self._rp+'/logs'
         self.log('status', 'True', 'w+')
         if (hasattr(self, 'maintype') and hasattr(self, 'city')):
             self._url = self._url % (self.maintype, self.city)
@@ -136,24 +137,23 @@ class Main(Service):
 
     def passCaptcha(self, show_browser = False):
         captchaCode = self._decodeCaptchaFile()
-        self._br.fill('input[name="'+str(self.params.get('captchaField'))+'"]', str(captchaCode))
-        self._br.wk_click('input[name="'+str(self.params.get('captchaSubmit'))+'"]', True)
+        self._br.runjs('document.querySelector(\'input[name="'+str(self.params.get('captchaField'))+'"]\').value="'+str(captchaCode)+'"')
+        self._br.runjs('document.querySelector(\'input[name="'+str(self.params.get('captchaSubmit'))+'"]\').click()', True)
+        self._br.wait(1)
         if (show_browser == True):
             self._br.browse()
         return True
 
     def serviceType(self, typeID, show_browser = False):
-        self._br.load_jquery(True)
-        self._br.select('select[name="'+str(self.params.get('serviceTypeSelect'))+'"] option[value="'+str(typeID)+'"]')
+        self._br.runjs('var a=document.getElementsByName("'+str(self.params.get('serviceTypeSelect'))+'")[0].options;for(i in a){if(a[i].value=='+str(typeID)+')a[i].selected=true}')
         self._br.runjs(self.render_js('asp_ajax_send', {'selectName':str(self.params.get('serviceTypeSelect'))}))
         echo('['+self.eval_time(time.time())+'] Service type is selected: '+str(typeID),'SUCCESS', self.work_dir)
+        self._br.wait(1)
         if (show_browser == True):
             self._br.browse()
         return True
 
     def choiceDate(self, date = None, show_browser = False):
-        self._br.wait_a_little(1)
-        self._br.load_jquery(True)
         if (date == None):
             dateIndex = str(1)
             dateList = self._br.runjs(self.render_js('select_date', {
@@ -161,7 +161,9 @@ class Main(Service):
                 'date': dateIndex
             })).toString()
             if (dateList == 'false'):
-                echo('['+self.eval_time(time.time())+'] No available dates. Run "RegBot" again.','WARNING', self.work_dir)
+                # date = filter(lambda x:x.isdigit() or x==':' or x==' ',self._br.runjs('document.getElementById("'+str(self.params.get('noDateHint'))+'").innerHTML;').toString())
+                date = self._br.runjs('document.getElementById("'+str(self.params.get('noDateHint'))+'").innerHTML;').toString().split(' ')
+                echo('['+self.eval_time(time.time())+'] No available dates to '+date[len(date)-1]+'. Run "RegBot" again.','WARNING', self.work_dir)
                 return False
             elif (dateList != 'true' and len(dateList) > 0):
                 fileName = self.work_dir+'/date_list.log';
@@ -182,12 +184,12 @@ class Main(Service):
             echo('['+self.eval_time(time.time())+'] Date is selected: '+str(date),'SUCCESS', self.work_dir)
         self._br.runjs('document.getElementsByName("'+str(self.params.get('dateSubmit'))+'")[0].removeAttribute("disabled");')
         self._br.wk_click('input[name="'+str(self.params.get('dateSubmit'))+'"]')
+        self._br.wait(1)
         if (show_browser == True):
             self._br.browse()
         return True
 
     def fillingProfile(self, dataFile, show_browser = False):
-        self._br.load_jquery(True)
         self._br.wait_a_little(1)
         echo('['+self.eval_time(time.time())+'] Yippee! current url: '+self._br.url,'SUCCESS', self.work_dir)
         if (show_browser == True):
@@ -211,12 +213,10 @@ class Main(Service):
                 self.run()
 
     def _getCaptchaFile(self):
-        self._br.load_jquery(True)
-        imgUrl = self._br.runjs("$('#recaptcha_image').children('img').attr('src');").toString()
+        imgUrl = self._br.runjs('document.getElementById("recaptcha_image").firstChild.getAttribute("src");').toString()
         if (imgUrl == ''):
             self._setLocale()
-            self._br.load_jquery(True)
-            imgUrl = self._br.runjs("$('#recaptcha_image').children('img').attr('src');").toString()
+            imgUrl = self._br.runjs('document.getElementById("recaptcha_image").firstChild.getAttribute("src");').toString()
         if (imgUrl):
             if not os.path.isdir(self.work_dir+'/captcha'):
                 os.makedirs(self.work_dir+'/captcha')
@@ -231,10 +231,9 @@ class Main(Service):
             sys.exit(2)
 
     def _setLocale(self):
-        self._br.load_jquery(True)
-        self._br.select('select[name="'+str(self.params.get('localeSelect'))+'"] option[value='+str(self.params.get('russianLocale'))+']')
+        self._br.runjs('document.getElementsByName("'+str(self.params.get('localeSelect'))+'")[0].options[2].selected = true')
         self._br.runjs(self.render_js('asp_ajax_send', {'selectName':str(self.params.get('localeSelect'))}))
-        self._br.wait_a_little(1)
+        self._br.wait(1)
 
     def _help(self):
         echo('RegBot - python bot(script) for registration profiles on viza.','INFO')
