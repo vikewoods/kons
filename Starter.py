@@ -3,9 +3,10 @@
 
 import sys, os, uuid, time, datetime, re, inspect, json, subprocess, threading
 
+rp = re.sub(os.path.basename(__file__),'',os.path.realpath(__file__))
 class Main:
 
-    logs = 'logs'
+    logs = rp+'logs'
 
     threads = {}
     subprocess = {}
@@ -27,7 +28,7 @@ class Main:
         self.threads[alias].start()
 
     def run_subprocess(self, alias, mapping):
-        command_line = 'python RegBot.py'
+        command_line = 'python '+rp+'RegBot.py'
         command_line += ' -c '+mapping['city']+' -m '+mapping['mainType'];
         if 'vizaType' in mapping: command_line += ' -t '+mapping['vizaType'];
         if 'date' in mapping: command_line += ' -d \''+mapping['date']+'\'';
@@ -71,9 +72,9 @@ class Main:
 
     def getProfilesMapping(self):
         mappings = []
-        if not os.path.isdir("profiles"):
+        if not os.path.isdir(rp+"profiles"):
             return False
-        for (p,d,files) in os.walk("profiles"):
+        for (p,d,files) in os.walk(rp+"profiles"):
             if (len(files) > 0):
                 mapping = {}
                 for b in re.sub('profiles\/*','',p).split('/'):
@@ -90,7 +91,7 @@ class Main:
 
     def getProfilesForChildrens(self, mapping):
         mappings = []
-        profilePath = 'profiles/c-'+mapping['city']+'/m-'+mapping['mainType']
+        profilePath = rp+'profiles/c-'+mapping['city']+'/m-'+mapping['mainType']
         if ('vizaType' in mapping): profilePath += '/t-'+mapping['vizaType'];
         profilesList = os.listdir(profilePath)
         if (mapping['profile'] in profilesList and len(profilesList) > 1):
@@ -131,10 +132,10 @@ class echo:
 
     def __init__(self, strLine = None, type = None):
         if (strLine == None):
-            log = open('starter.log','w+')
+            log = open(rp+'starter.log','w+')
             log.close()
         else:
-            log = open('starter.log','a+')
+            log = open(rp+'starter.log','a+')
             log.write(strLine+'\n')
             log.close()
             if (type != None and hasattr(self, type)):
