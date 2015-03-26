@@ -50,7 +50,7 @@ class Main(Service):
     
     params = {
         'localeSelect': 'ctl00$ddlWersjeJezykowe',      #name   
-        'captchaField': 'recaptcha_response_field',     #id/name
+        'captchaField': 'cp_KomponentObrazkowy_VerificationID',     #id/name
         'captchaSubmit': 'ctl00$cp$btnDalej',           #name   
         'serviceTypeSelect': 'ctl00$cp$cbRodzajUslugi', #name   
         'dateSelect': 'ctl00$cp$cbDzien',               #name   
@@ -213,14 +213,16 @@ class Main(Service):
                 self.run()
 
     def _getCaptchaFile(self):
-        imgUrl = self._br.runjs('document.getElementById("recaptcha_image").firstChild.getAttribute("src");').toString()
+        imgUrl = self._br.runjs('document.getElementById("cp_KomponentObrazkowy_CaptchaImageID").getAttribute("src");').toString()
+	imgUrl = imgUrl.trimmed('..')
+	imgUrl = 'https://secure.e-konsulat.gov.pl' + imgUrl
         if (imgUrl == ''):
             self._setLocale()
-            imgUrl = self._br.runjs('document.getElementById("recaptcha_image").firstChild.getAttribute("src");').toString()
+            imgUrl = self._br.runjs('document.getElementById("cp_KomponentObrazkowy_CaptchaImageID").getAttribute("src");').toString()
         if (imgUrl):
             if not os.path.isdir(self.work_dir+'/captcha'):
                 os.makedirs(self.work_dir+'/captcha')
-            captchaName = str(uuid.uuid4())+'.jpg'
+            captchaName = str(uuid.uuid4())+'.png'
             imgName, imgRes = urllib.urlretrieve(str(imgUrl),self.work_dir+'/captcha/'+captchaName)
             echo('['+self.eval_time(time.time())+'] Captcha file saved: '+str(imgName),'SUCCESS', self.work_dir)
             return (imgName)

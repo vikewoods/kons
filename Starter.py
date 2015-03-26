@@ -1,9 +1,17 @@
 #!/usr/bin/python
 # coding: utf8
 
-import sys, os, uuid, time, datetime, re, inspect, json, subprocess, threading
-
+import sys, os, uuid, time, datetime, re, inspect, json, subprocess, threading, pyvirtualdisplay
+from pyvirtualdisplay import Display
 rp = re.sub(os.path.basename(__file__),'',os.path.realpath(__file__))
+
+#os.environ["DISPLAY"]=":99"
+
+
+
+display = Display(visible=0, size=(1024, 768))
+display.start()
+
 class Main:
 
     logs = rp+'logs'
